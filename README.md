@@ -48,6 +48,36 @@ SBP,DBP,IOP,HR,Patient
 
 `Patient` is optional; if omitted, you can still run.
 
+## Preprocess nested patient-level CSVs
+
+If your input is a *patient-level aggregated* CSV where many columns are stored as lists/arrays (and there are no timestamps), you can preprocess it into an eye-level dataset (one row per `patient_uid` + `eye` + unique diagnosis code) using:
+
+### One-click (recommended)
+
+Edit paths inside `preprocess_and_generate_config_simple.py`, then run:
+
+```bash
+python preprocess_and_generate_config_simple.py
+```
+
+This produces:
+- `data/processed/processed_aggregate_data.csv`
+- `config/processed_retinal_model.yaml`
+
+### CLI (more flexible)
+
+```bash
+python preprocess_aggregate_data.py \
+  --input-csv data/aggregate_data.csv \
+  --output-csv data/processed/processed_aggregate_data.csv \
+  --output-config-yaml config/processed_retinal_model.yaml
+```
+
+The script:
+- computes medians for `SBP`, `DBP`, `HR`, and per-eye `IOP`
+- drops rows missing required values
+- keeps unique diagnosis codes per patient and selects the highest-priority severity
+
 ## Notes / troubleshooting
 
 - If you get an error related to missing `IOP` matches in `Initial_wIOP.csv`, try using an `IOP` value whose rounded integer exists in the lookup table.
