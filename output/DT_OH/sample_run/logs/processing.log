@@ -1,0 +1,5 @@
+2026-03-19 11:41:59,778 - pipeline.RetinalModel - INFO - Loaded initial conditions from /Users/yashlahoti/Desktop/Python_Projects/dtoh-simulation/DT_OH/init/Initial_wIOP.csv
+2026-03-19 11:41:59,779 - pipeline.RetinalModel - INFO - Starting processing of 3 rows
+2026-03-19 11:41:59,779 - pipeline.RetinalModel - INFO - Input validation passed. Found all 4 required columns.
+2026-03-19 11:41:59,784 - pipeline.RetinalModel - INFO - Processing 3 rows (0 already done)
+2026-03-19 11:42:01,824 - pipeline.RetinalModel - INFO - Processing complete. Total rows: 3
