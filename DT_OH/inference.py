@@ -21,7 +21,7 @@ import numpy as np
 import pandas as pd
 from scipy.integrate import solve_ivp
 from tqdm import tqdm
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, wait, FIRST_COMPLETED
 
 # Import BaseModule and the core RetinalModelModule logic
 from .base_module import BaseModule
@@ -558,54 +558,80 @@ class RetinalModelModule(BaseModule):
         # Process rows
         records = to_process.to_dict(orient='records')
         buffer_rows = []
-        
-        with ProcessPoolExecutor(max_workers=self.n_workers) as ex:
-            futures = {
-                ex.submit(self._run_on_row, rec): rec
-                for rec in records
-            }
-            
-            # tqdm can appear "stuck" in some IDE/terminal configurations unless
-            # it writes to the active stream and refreshes periodically.
-            pbar = tqdm(
-                total=len(futures),
-                desc=f"Processing {self.name}",
-                file=sys.stdout,
-                mininterval=1.0,
-            )
-            
-            for fut in as_completed(futures):
-                rec = futures[fut]
+        total_rows = len(records)
+
+        max_workers = self.n_workers if self.n_workers is not None else (os.cpu_count() or 1)
+        # Keep only a bounded number of futures in flight so we don't enqueue 200k+ tasks at once
+        # (that can freeze the parent process and make tqdm look "stuck").
+        in_flight_max = max(max_workers * 4, max_workers + 4, 8)
+
+        pbar = tqdm(
+            total=total_rows,
+            desc=f"Processing {self.name}",
+            file=sys.stdout,
+            mininterval=0.5,
+        )
+
+        def handle_one_result(rec: Dict[str, Any], result_vals: Optional[List[float]], err: Optional[BaseException]) -> None:
+            nonlocal buffer_rows
+            if err is not None:
+                patient_id = rec.get(self.patient_id_column, 'Unknown')
+                self.logger.error(f"Error processing Patient {patient_id}: {err}")
+                err_row = {k: rec.get(k, None) for k in ['__orig_index__', self.patient_id_column] + required}
+                err_row['error'] = str(err)
+                self.log_error(err_row)
+                return
+            out_row = pd.DataFrame([{**rec, **dict(zip(result_cols, result_vals))}])
+            buffer_rows.append(out_row)
+            if len(buffer_rows) >= self.checkpoint_interval:
+                batch = pd.concat(buffer_rows, ignore_index=True)
+                cols_order = list(to_process.columns) + result_cols
+                batch = batch[cols_order]
+                self.append_results(batch)
+                processed_set.update(batch['__orig_index__'].tolist())
+                self.save_checkpoint(sorted(list(processed_set)))
+                buffer_rows.clear()
+
+        if max_workers <= 1:
+            # In-process: avoids multiprocessing pickling/spawn overhead per row.
+            for rec in records:
                 try:
-                    idx, result_vals = fut.result()
+                    idx, result_vals = self._run_on_row(rec)
+                    handle_one_result(rec, result_vals, None)
                 except Exception as e:
-                    patient_id = rec.get(self.patient_id_column, 'Unknown')
-                    self.logger.error(f"Error processing Patient {patient_id}: {e}")
-                    err_row = {k: rec.get(k, None) for k in ['__orig_index__', self.patient_id_column] + required}
-                    err_row['error'] = str(e)
-                    self.log_error(err_row)
-                    pbar.update(1)
-                    continue
-                
-                # Build output row
-                out_row = pd.DataFrame([{**rec, **dict(zip(result_cols, result_vals))}])
-                buffer_rows.append(out_row)
-                
-                # Checkpoint
-                if len(buffer_rows) >= self.checkpoint_interval:
-                    batch = pd.concat(buffer_rows, ignore_index=True)
-                    cols_order = list(to_process.columns) + result_cols
-                    batch = batch[cols_order]
-                    
-                    self.append_results(batch)
-                    processed_set.update(batch['__orig_index__'].tolist())
-                    self.save_checkpoint(sorted(list(processed_set)))
-                    
-                    buffer_rows.clear()
-                
+                    handle_one_result(rec, None, e)
                 pbar.update(1)
-            
-            pbar.close()
+        else:
+            rec_iter = iter(records)
+            pending: Dict[Any, Dict[str, Any]] = {}
+
+            def refill(ex: ProcessPoolExecutor) -> None:
+                while len(pending) < in_flight_max:
+                    try:
+                        rec = next(rec_iter)
+                    except StopIteration:
+                        break
+                    fut = ex.submit(self._run_on_row, rec)
+                    pending[fut] = rec
+
+            with ProcessPoolExecutor(max_workers=max_workers) as ex:
+                refill(ex)
+                while pending:
+                    done, _ = wait(
+                        list(pending.keys()),
+                        return_when=FIRST_COMPLETED,
+                    )
+                    for fut in done:
+                        rec = pending.pop(fut)
+                        try:
+                            idx, result_vals = fut.result()
+                            handle_one_result(rec, result_vals, None)
+                        except Exception as e:
+                            handle_one_result(rec, None, e)
+                        pbar.update(1)
+                    refill(ex)
+
+        pbar.close()
         
         # Final flush
         if buffer_rows:
