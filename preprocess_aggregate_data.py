@@ -122,6 +122,24 @@ def median_from_list(values: Sequence[Any]) -> Optional[float]:
     return float(np.median(np.asarray(nums, dtype=float)))
 
 
+def std_from_list(values: Sequence[Any]) -> Optional[float]:
+    nums: List[float] = []
+    for v in values:
+        if _is_null(v):
+            continue
+        try:
+            f = float(v)
+        except Exception:
+            continue
+        if math.isfinite(f):
+            nums.append(f)
+
+    if not nums:
+        return None
+    # Population standard deviation (ddof=0). If only one value, SD=0.0.
+    return float(np.std(np.asarray(nums, dtype=float), ddof=0))
+
+
 def normalize_code(code: Any) -> Optional[str]:
     if _is_null(code):
         return None
@@ -223,12 +241,23 @@ def process_one_patient(
 ) -> List[Dict[str, Any]]:
     patient_uid = normalize_code(row.get(patient_uid_col))
 
-    sbp = median_from_list(parse_list_cell(row.get(bp_systolic_col)))
-    dbp = median_from_list(parse_list_cell(row.get(bp_diastolic_col)))
-    hr = median_from_list(parse_list_cell(row.get(pulse_col)))
+    sbp_vals = parse_list_cell(row.get(bp_systolic_col))
+    dbp_vals = parse_list_cell(row.get(bp_diastolic_col))
+    hr_vals = parse_list_cell(row.get(pulse_col))
+    od_iop_vals = parse_list_cell(row.get(od_iop_col))
+    os_iop_vals = parse_list_cell(row.get(os_iop_col))
 
-    od_iop = median_from_list(parse_list_cell(row.get(od_iop_col)))
-    os_iop = median_from_list(parse_list_cell(row.get(os_iop_col)))
+    sbp = median_from_list(sbp_vals)
+    dbp = median_from_list(dbp_vals)
+    hr = median_from_list(hr_vals)
+    sbp_sd = std_from_list(sbp_vals)
+    dbp_sd = std_from_list(dbp_vals)
+    hr_sd = std_from_list(hr_vals)
+
+    od_iop = median_from_list(od_iop_vals)
+    os_iop = median_from_list(os_iop_vals)
+    od_iop_sd = std_from_list(od_iop_vals)
+    os_iop_sd = std_from_list(os_iop_vals)
 
     # If vitals are missing, we can't run the retinal model
     if sbp is None or dbp is None or hr is None:
@@ -277,8 +306,11 @@ def process_one_patient(
 
     output_rows: List[Dict[str, Any]] = []
 
-    eye_specs: List[Tuple[str, Optional[float]]] = [("OD", od_iop), ("OS", os_iop)]
-    for eye, iop in eye_specs:
+    eye_specs: List[Tuple[str, Optional[float], Optional[float]]] = [
+        ("OD", od_iop, od_iop_sd),
+        ("OS", os_iop, os_iop_sd),
+    ]
+    for eye, iop, iop_sd in eye_specs:
         # Drop rows missing IOP for that eye
         if iop is None:
             continue
@@ -291,6 +323,10 @@ def process_one_patient(
                 "DBP": dbp,
                 "HR": hr,
                 "IOP": iop,
+                "SBP_SD": sbp_sd,
+                "DBP_SD": dbp_sd,
+                "HR_SD": hr_sd,
+                "IOP_SD": iop_sd,
                 "diagnosis_code": meta["diagnosis_code"],
                 "diagnosis_short_desc": meta["diagnosis_short_desc"],
                 "diagnosis_severity": meta["diagnosis_severity"],
