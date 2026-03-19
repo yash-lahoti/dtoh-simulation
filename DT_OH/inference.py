@@ -371,7 +371,8 @@ class RetinalModelModule(BaseModule):
         # Resolve path relative to project root if not absolute
         if not Path(initial_conditions_path).is_absolute():
             # Try to resolve relative to project root
-            project_root = Path(__file__).parent.parent.parent.parent
+            # `inference.py` lives in `DT_OH/`, so project root is the parent dir.
+            project_root = Path(__file__).resolve().parent.parent
             initial_conditions_path = project_root / initial_conditions_path
         else:
             initial_conditions_path = Path(initial_conditions_path)
@@ -654,7 +655,8 @@ class RetinalModelModuleWrapper:
         module_config = copy.deepcopy(module_def.get('config', {}))
         
         # Resolve paths
-        project_root = Path(__file__).parent.parent.parent.parent
+        # `inference.py` lives in `DT_OH/`, so project root is the parent dir.
+        project_root = Path(__file__).resolve().parent.parent
         
         # Input CSV path
         csv_path = input_conf.get('csv_path', '')
