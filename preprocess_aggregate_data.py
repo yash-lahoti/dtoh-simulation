@@ -174,6 +174,10 @@ def build_yaml_config(
     checkpoint_interval: int,
 ) -> str:
     # Keep this as a simple string generator to avoid YAML dependencies.
+    # Important for Windows: convert backslashes to forward slashes and quote paths,
+    # otherwise YAML can interpret sequences like "\t" inside "C:\...".
+    input_csv_rel = input_csv_rel.replace("\\", "/")
+    base_dir_rel = base_dir_rel.replace("\\", "/")
     return "\n".join(
         [
             "pipeline:",
@@ -182,9 +186,9 @@ def build_yaml_config(
             "  modules:",
             "    - name: RetinalModel",
             "      input:",
-            f"        csv_path: {input_csv_rel}",
+            f"        csv_path: \"{input_csv_rel}\"",
             "      output:",
-            f"        base_dir: {base_dir_rel}",
+            f"        base_dir: \"{base_dir_rel}\"",
             "      config:",
             "        initial_conditions_path: DT_OH/init/Initial_wIOP.csv",
             "        required_columns:",
