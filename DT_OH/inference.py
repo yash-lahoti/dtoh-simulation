@@ -384,6 +384,14 @@ class RetinalModelModule(BaseModule):
         processing = config.get('processing', {})
         self.n_workers = processing.get('n_workers', None)
         self.checkpoint_interval = processing.get('checkpoint_interval', 1)
+
+        # If `n_workers` is not specified (null), choose a reasonable default
+        # based on available CPU cores.
+        if self.n_workers is None:
+            cpu_count = os.cpu_count() or 1
+            # Leave 1 core free to keep the system responsive.
+            self.n_workers = max(1, cpu_count - 1)
+        self.n_workers = int(self.n_workers)
         
         # Patient ID column (optional)
         self.patient_id_column = config.get('patient_id_column', 'Patient')

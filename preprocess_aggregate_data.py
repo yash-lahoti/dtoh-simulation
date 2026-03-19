@@ -21,8 +21,9 @@ Rules:
   - If any required values are missing after computing medians, the row is dropped.
   - For multi measurements, SBP/DBP/HR/IOP are computed as the median of the list values.
   - For diagnoses, we keep unique diagnosis codes per patient.
+  - Keep only mild/moderate/severe diagnosis events.
   - For each diagnosis code, we keep the highest-priority severity using:
-      interminate/indeterminate < unspecified < mild < moderate < severe
+      mild < moderate < severe
 """
 
 from __future__ import annotations
@@ -41,13 +42,13 @@ from tqdm import tqdm
 
 SEVERITY_PRIORITY_ORDER = [
     # Lowest -> highest priority
-    "interminate",
-    "indeterminate",
-    "unspecified",
     "mild",
     "moderate",
     "severe",
 ]
+
+# Enforce the user constraint: only these severities are allowed through.
+ALLOWED_SEVERITIES = set(SEVERITY_PRIORITY_ORDER)
 
 
 def _is_null(x: Any) -> bool:
@@ -251,29 +252,24 @@ def process_one_patient(
             c = normalize_code(codes[i])
             if c is None:
                 continue
-            rank = severity_rank(severities[i], priority_map)
+            # Only keep mild/moderate/severe. Drop other severities entirely.
+            norm_sev = normalize_severity(severities[i]) if i < len(severities) else None
+            if norm_sev is None or norm_sev not in ALLOWED_SEVERITIES:
+                continue
+
+            rank = priority_map.get(norm_sev, -1)
             desc = short_descs[i] if i < len(short_descs) else None
             # Choose the highest rank; if tie, keep existing.
             if c not in best_by_code or rank > best_by_code[c]["severity_rank"]:
                 best_by_code[c] = {
                     "diagnosis_code": c,
                     "diagnosis_short_desc": desc if not _is_null(desc) else None,
-                    "diagnosis_severity": severities[i] if not _is_null(severities[i]) else None,
+                    "diagnosis_severity": norm_sev if not _is_null(norm_sev) else None,
                     "severity_rank": rank,
                 }
     else:
-        # Code-only fallback: unique codes, severity/desc unknown.
-        for c0 in codes:
-            c = normalize_code(c0)
-            if c is None:
-                continue
-            if c not in best_by_code:
-                best_by_code[c] = {
-                    "diagnosis_code": c,
-                    "diagnosis_short_desc": None,
-                    "diagnosis_severity": None,
-                    "severity_rank": -1,
-                }
+        # If we can't align severity to codes, we can't apply the mild/moderate/severe filter.
+        return []
 
     if not best_by_code:
         # No diagnosis codes => drop (you asked to keep unique diagnosis codes)
@@ -414,7 +410,9 @@ def main() -> None:
     processed = pd.DataFrame(out_rows)
 
     # Drop rows with missing required simulation inputs (SBP/DBP/HR/IOP)
-    processed = processed.dropna(subset=["SBP", "DBP", "HR", "IOP", "diagnosis_code"])
+    processed = processed.dropna(
+        subset=["SBP", "DBP", "HR", "IOP", "diagnosis_code", "diagnosis_severity"]
+    )
 
     # Drop helper severity rank if you don't want it later; leaving it is useful.
     processed = processed.reset_index(drop=True)
