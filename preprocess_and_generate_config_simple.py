@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
+import os
 from pathlib import Path
 
 
@@ -77,7 +78,10 @@ def main() -> None:
         PIPELINE_NAME,
     ]
 
-    subprocess.run(cmd, check=True)
+    # Avoid output buffering so `tqdm` progress bars show up promptly.
+    env = os.environ.copy()
+    env["PYTHONUNBUFFERED"] = "1"
+    subprocess.run(cmd, check=True, env=env)
 
     print("Preprocessing + YAML config generation complete.")
     print(f"Processed CSV: {OUTPUT_CSV}")
