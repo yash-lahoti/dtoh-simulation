@@ -13,6 +13,7 @@ import os
 import json
 import math
 import warnings
+import sys
 from pathlib import Path
 from typing import List, Dict, Any, Tuple, Optional
 
@@ -564,7 +565,14 @@ class RetinalModelModule(BaseModule):
                 for rec in records
             }
             
-            pbar = tqdm(total=len(futures), desc=f"Processing {self.name}")
+            # tqdm can appear "stuck" in some IDE/terminal configurations unless
+            # it writes to the active stream and refreshes periodically.
+            pbar = tqdm(
+                total=len(futures),
+                desc=f"Processing {self.name}",
+                file=sys.stdout,
+                mininterval=1.0,
+            )
             
             for fut in as_completed(futures):
                 rec = futures[fut]
@@ -700,20 +708,20 @@ class RetinalModelModuleWrapper:
         
         Reads CSV from input path, processes it, and saves results.
         """
-        print(f"--- Starting Task: {self.name} ---")
+        print(f"--- Starting Task: {self.name} ---", flush=True)
         
         # Load input CSV
         if not self.csv_path.exists():
             raise FileNotFoundError(f"Input CSV not found: {self.csv_path}")
         
-        print(f"Loading input data from {self.csv_path}")
+        print(f"Loading input data from {self.csv_path}", flush=True)
         data = pd.read_csv(self.csv_path)
-        print(f"Loaded {len(data)} rows")
+        print(f"Loaded {len(data)} rows", flush=True)
         
         # Process data
         results = self.module.process(data)
         
         # Results are already saved by the module's process() method
-        print(f"Processing complete. Results saved to {self.results_dir}")
-        print(f"--- Completed Task: {self.name} ---")
+        print(f"Processing complete. Results saved to {self.results_dir}", flush=True)
+        print(f"--- Completed Task: {self.name} ---", flush=True)
 
