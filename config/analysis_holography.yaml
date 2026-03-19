@@ -1,0 +1,42 @@
+pipeline:
+  name: holography_analysis
+
+  inputs:
+    # DTOH model outputs
+    holography_results: output/DT_OH/Holography/holography_results.csv
+
+    # Holography + vitals source table
+    study_merged: data/study_merged.csv
+
+  outputs:
+    base_dir: output/analysis/Holography
+    plots_dir: plots
+    tables_dir: tables
+
+  variables:
+    # DTOH model output variables to visualize
+    result_vars:
+      - P1
+      - P2
+      - P4
+      - P5
+      - Qmean
+      - R1
+      - R4
+      - R5
+
+    # Key input vitals / pressure variables from study_merged
+    input_vars:
+      - iop_1
+      - systolic_bp_1
+      - diastolic_bp_1
+      - hr_1
+
+    # Optional extra holography waveform features for later analysis
+    holo_waveform_vars:
+      - holo_artery_pulsatility_index
+      - holo_artery_resistivity_index
+      - holo_windkessel_ceff
+      - holo_windkessel_decay_rc
+      - holo_windkessel_reff
+

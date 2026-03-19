@@ -1,0 +1,54 @@
+# Pipeline Configuration: NIH_Cardiology
+# Retinal hemodynamics simulation for NIH Cardiology dataset
+
+pipeline:
+  name: nih_cardiology
+  
+  # Global settings
+  device: cpu  # Retinal model doesn't use GPU
+  
+  # Module chain
+  modules:
+    - name: RetinalModel
+      # Input CSV file path
+      input:
+        csv_path: data/tabular/NIH_Cardiology.csv
+      
+      # Output directory for results
+      output:
+        base_dir: output/DT_OH/NIH_Cardiology
+      
+      # Module-specific configuration
+      config:
+        # Path to initial conditions lookup table
+        initial_conditions_path: src/modules/DT_OH/init/Initial_wIOP.csv
+        
+        # Required input columns
+        required_columns:
+          - "SBP"    # Systolic Blood Pressure
+          - "DBP"    # Diastolic Blood Pressure  
+          - "IOP"    # Intraocular Pressure
+          - "HR"     # Heart Rate
+        
+        # Output columns produced by this module
+        output_columns:
+          - "P1"      # Pressure at node 1
+          - "P2"      # Pressure at node 2
+          - "P4"      # Pressure at node 4
+          - "P5"      # Pressure at node 5
+          - "Qmean"   # Mean flow rate
+          - "R1"      # Resistance 1
+          - "R4"      # Resistance 4
+          - "R5"      # Resistance 5
+        
+        # Patient identifier column (for logging)
+        patient_id_column: "Patient"
+        
+        # Processing parameters
+        processing:
+          # Number of parallel workers (null = use all available cores)
+          n_workers: null
+          
+          # How often to save checkpoint (every N rows)
+          checkpoint_interval: 1
+

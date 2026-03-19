@@ -1,0 +1,57 @@
+# Pipeline Configuration: Holography
+# Retinal hemodynamics simulation for holography-derived dataset
+
+pipeline:
+  name: holography
+  
+  # Global settings
+  device: cpu  # Retinal model doesn't use GPU
+  
+  # Module chain
+  modules:
+    - name: RetinalModel
+      # Input CSV file path
+      input:
+        # Holography + clinical vitals merged table
+        # (relative to the dtoh-simulation workspace root)
+        csv_path: data/study_merged.csv
+      
+      # Output directory for results
+      output:
+        base_dir: output/DT_OH/Holography
+      
+      # Module-specific configuration
+      config:
+        # Path to initial conditions lookup table
+        initial_conditions_path: /Volumes/Harris_AI/Ophthalmology-Labs-Inference/Holo-Pipeline-Module/workspace/dtoh-simulation/DT_OH/init/Initial_wIOP.csv
+        
+        # Required input columns in the holography dataset
+        # (mapped to SBP/DBP/IOP/HR used by the retinal model)
+        required_columns:
+          - "systolic_bp_1"   # Systolic Blood Pressure
+          - "diastolic_bp_1"  # Diastolic Blood Pressure  
+          - "iop_1"           # Intraocular Pressure
+          - "hr_1"            # Heart Rate
+        
+        # Output columns produced by this module
+        output_columns:
+          - "P1"      # Pressure at node 1
+          - "P2"      # Pressure at node 2
+          - "P4"      # Pressure at node 4
+          - "P5"      # Pressure at node 5
+          - "Qmean"   # Mean flow rate
+          - "R1"      # Resistance 1
+          - "R4"      # Resistance 4
+          - "R5"      # Resistance 5
+        
+        # Patient identifier column (for logging)
+        patient_id_column: "person_id"
+        
+        # Processing parameters
+        processing:
+          # Number of parallel workers (null = use all available cores)
+          n_workers: null
+          
+          # How often to save checkpoint (every N rows)
+          checkpoint_interval: 1
+
