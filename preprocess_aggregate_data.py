@@ -36,6 +36,7 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
 
 
 SEVERITY_PRIORITY_ORDER = [
@@ -393,7 +394,7 @@ def main() -> None:
         raise ValueError(f"Missing required columns in input CSV: {missing}")
 
     out_rows: List[Dict[str, Any]] = []
-    for _, row in df.iterrows():
+    for _, row in tqdm(df.iterrows(), total=len(df), desc="Processing patients"):
         out_rows.extend(
             process_one_patient(
                 row,
